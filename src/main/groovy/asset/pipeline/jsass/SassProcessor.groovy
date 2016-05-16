@@ -20,9 +20,9 @@ import asset.pipeline.AssetCompiler
 import asset.pipeline.AssetFile
 import asset.pipeline.AssetPipelineConfigHolder
 import groovy.util.logging.Log4j
-import io.bit3.jsass.CompilationException
 import io.bit3.jsass.Compiler
 import io.bit3.jsass.Options
+import io.bit3.jsass.OutputStyle
 
 @Log4j
 class SassProcessor extends AbstractProcessor {
@@ -32,14 +32,10 @@ class SassProcessor extends AbstractProcessor {
     SassProcessor(AssetCompiler precompiler) {
         super(precompiler)
         options.getImporters().add(new SassAssetFileImporter())
-        // TODO: Implement more options
-        if(!precompiler) {
-            if (AssetPipelineConfigHolder.config?.sass?.sourceComments) {
-                options.setSourceComments(true)
-                options.setSourceMapEmbed(true)
-            }
-        }
-    }
+        // TODO: Add support for more configuration options (like source maps)
+        options.setOutputStyle(AssetPipelineConfigHolder.config?.sass?.outputStyle ?: OutputStyle.EXPANDED)
+        options.setSourceComments(AssetPipelineConfigHolder.config?.sass?.sourceComments ?: true)
+     }
 
     /**
      * Called whenever the asset pipeline detects a change in the file provided as argument
@@ -48,17 +44,12 @@ class SassProcessor extends AbstractProcessor {
      * @return
      */
     String process(String input, AssetFile assetFile) {
-        try {
-            if (!this.precompiler) {
-                SassAssetFileImporter.assetFileThreadLocal.set(assetFile)
-            }
-
-            log.info "Compiling $assetFile.name"
-            def output = compiler.compileString(input, assetFile.path.toURI(), null, options)
-            return output.css
-        } catch (CompilationException e) {
-            log.error(e.errorMessage)
-            throw e
+        if (!this.precompiler) {
+            SassAssetFileImporter.assetFileThreadLocal.set(assetFile)
         }
+
+        log.info "Compiling $assetFile.name"
+        def output = compiler.compileString(input, assetFile.path.toURI(), null, options)
+        return output.css
     }
 }
