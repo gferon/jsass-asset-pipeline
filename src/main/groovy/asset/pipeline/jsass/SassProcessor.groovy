@@ -19,7 +19,6 @@ import asset.pipeline.AbstractProcessor
 import asset.pipeline.AssetCompiler
 import asset.pipeline.AssetFile
 import asset.pipeline.AssetPipelineConfigHolder
-import asset.pipeline.fs.FileSystemAssetResolver
 import groovy.util.logging.Log4j
 import io.bit3.jsass.CompilationException
 import io.bit3.jsass.Compiler
@@ -32,7 +31,7 @@ class SassProcessor extends AbstractProcessor {
 
     SassProcessor(AssetCompiler precompiler) {
         super(precompiler)
-        options.getImporters().add(new SassCacheManagerImporter())
+        options.getImporters().add(new SassAssetFileImporter())
         // TODO: Implement more options
         if(!precompiler) {
             if (AssetPipelineConfigHolder.config?.sass?.sourceComments) {
@@ -44,29 +43,19 @@ class SassProcessor extends AbstractProcessor {
 
     /**
      * Called whenever the asset pipeline detects a change in the file provided as argument
-     * TODO: Find a way to resolve the full filepath without accessing the private resolver field
      * @param input the content of the SCSS file to compile
      * @param assetFile
      * @return
      */
     String process(String input, AssetFile assetFile) {
         try {
-            if (assetFile.getSourceResolver() instanceof FileSystemAssetResolver) {
-                def baseDir = ((FileSystemAssetResolver) assetFile.getSourceResolver()).baseDirectory
-                def inputFileName = new File(baseDir.canonicalPath, assetFile.path)
-
-                if (!this.precompiler) {
-                    SassCacheManagerImporter.baseDirectoryThreadLocal.set(baseDir.absolutePath)
-                    SassCacheManagerImporter.assetFileThreadLocal.set(assetFile)
-                }
-
-                log.info "Compiling $assetFile.name"
-                // TODO: Find a better way to use the current working directory?
-                def output = compiler.compileString(input, inputFileName.toURI(), null, options)
-                return output.css
-            } else {
-                throw new IOException('Failed to resolve base directory of assets pipeline')
+            if (!this.precompiler) {
+                SassAssetFileImporter.assetFileThreadLocal.set(assetFile)
             }
+
+            log.info "Compiling $assetFile.name"
+            def output = compiler.compileString(input, assetFile.path.toURI(), null, options)
+            return output.css
         } catch (CompilationException e) {
             log.error(e.errorMessage)
             throw e
